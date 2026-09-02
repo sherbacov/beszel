@@ -42,6 +42,12 @@ build:hub:
   variables:
     DOCKER_HOST: tcp://docker:2375/
     DOCKER_BUILDKIT: "1"
+  # Метка обязательна: dind поднимается только на gitlab-docker-runner. Общий
+  # shared-docker берёт задания без меток, но сервис-контейнер у него не
+  # работает, и сборка падает на "Cannot connect to the Docker daemon".
+  # Ровно поэтому метка стоит и в infra/crm-image, и в infra/mail-send.
+  tags:
+    - docker
   before_script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
