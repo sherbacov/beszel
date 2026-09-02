@@ -176,6 +176,10 @@ type Info struct {
 	LoadAvg        [3]float64         `json:"la,omitempty" cbor:"19,keyasint"`
 	ConnectionType ConnectionType     `json:"ct,omitempty" cbor:"20,keyasint,omitempty,omitzero"`
 	ExtraFsPct     map[string]float64 `json:"efs,omitempty" cbor:"21,keyasint,omitempty"`
+	// Tunnels carries tunnel interfaces and whether each is up. Reported with
+	// every tick rather than with the static details, because a tunnel going
+	// down is exactly the thing worth noticing quickly.
+	Tunnels []TunnelStatus `json:"tun,omitempty" cbor:"30,keyasint,omitempty"`
 	Services       []uint16           `json:"sv,omitempty" cbor:"22,keyasint,omitempty"`  // [totalServices, numFailedServices]
 	Battery        Battery            `json:"bat,omitzero" cbor:"23,keyasint,omitzero"`   // [percent, charge state]
 	RootDiskName   string             `json:"rdn,omitempty" cbor:"24,keyasint,omitempty"` // custom name for root disk (set via FILESYSTEM=device__name)
@@ -199,6 +203,15 @@ type Details struct {
 	// link-local are filtered out: on a hypervisor with dozens of bridges and
 	// tunnels they bury the addresses the machine is actually reachable on.
 	Addresses []InterfaceAddresses `cbor:"12,keyasint,omitempty"`
+}
+
+// TunnelStatus is the state of one tunnel interface. Byte counters are not
+// repeated here — they are reported per interface in Stats.NetworkInterfaces
+// under the same name.
+type TunnelStatus struct {
+	Name string `json:"n" cbor:"0,keyasint"`
+	Kind string `json:"k" cbor:"1,keyasint"` // ip6tnl, ipip, sit, gre, wireguard, vxlan
+	Up   bool   `json:"u" cbor:"2,keyasint"` // IFF_UP; tunnels report no carrier, so operstate is useless
 }
 
 // InterfaceAddresses holds the global IP addresses of a single network interface.
