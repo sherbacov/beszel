@@ -80,6 +80,27 @@ export interface SystemInfo {
 	sv?: [number, number]
 	/** custom root disk name */
 	rdn?: string
+	/** tunnel interfaces and whether each is up */
+	tun?: TunnelStatus[]
+}
+
+/** A tunnel interface reported by the agent. Byte counters live in the
+ * per-interface network stats under the same name. */
+export interface TunnelStatus {
+	/** interface name */
+	n: string
+	/** encapsulation: ip6tnl, ipip, sit, gre, ip6gre, wireguard, vxlan */
+	k: string
+	/** administrative state (IFF_UP) */
+	u: boolean
+}
+
+/** Global IP addresses of one network interface. */
+export interface InterfaceAddresses {
+	/** interface name */
+	n: string
+	/** addresses, without loopback or link-local */
+	a: string[]
 }
 
 export interface SystemStats {
@@ -460,6 +481,8 @@ export interface SystemDetailsRecord extends RecordModel {
 	os_name: string
 	memory: number
 	podman: boolean
+	/** global IP addresses per interface */
+	addresses?: InterfaceAddresses[]
 }
 
 export interface SmartDeviceRecord extends RecordModel {

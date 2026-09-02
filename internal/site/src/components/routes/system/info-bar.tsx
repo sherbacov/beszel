@@ -8,7 +8,9 @@ import {
 	GlobeIcon,
 	MemoryStickIcon,
 	MonitorIcon,
+	NetworkIcon,
 	Settings2Icon,
+	SplineIcon,
 } from "lucide-react"
 import { useMemo } from "react"
 import ChartTimeSelect from "@/components/charts/chart-time-select"
@@ -112,6 +114,32 @@ export default function InfoBar({
 			Icon: React.ElementType
 			hide?: boolean
 		}[]
+
+		// Global addresses per interface. The host field holds only the single
+		// address the hub connected on, which on a machine with several bridges
+		// says little about where it actually answers.
+		const addresses = details?.addresses
+		if (addresses?.length) {
+			const total = addresses.reduce((n, iface) => n + iface.a.length, 0)
+			info.push({
+				value: plural(total, { one: "# address", other: "# addresses" }),
+				Icon: NetworkIcon,
+				label: addresses.map((iface) => `${iface.n}: ${iface.a.join(", ")}`).join(" · "),
+			})
+		}
+
+		// Tunnels are listed whether up or down: one that went down is the point.
+		const tunnels = system.info.tun
+		if (tunnels?.length) {
+			const up = tunnels.filter((tunnel) => tunnel.u).length
+			info.push({
+				value: `${up}/${tunnels.length}`,
+				Icon: SplineIcon,
+				label: tunnels
+					.map((tunnel) => `${tunnel.n} (${tunnel.k}): ${tunnel.u ? t`up` : t`down`}`)
+					.join(" · "),
+			})
+		}
 
 		if (memory) {
 			const memValue = formatBytes(memory, false, undefined, false)
