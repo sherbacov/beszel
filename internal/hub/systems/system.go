@@ -299,6 +299,13 @@ func createSystemDetailsRecord(app core.App, data *system.Details, systemId stri
 		"podman":   data.Podman,
 		"updated":  time.Now().UTC(),
 	}
+	// Agents older than this feature send no addresses; leave the column alone
+	// rather than overwriting a previously reported list with an empty one.
+	if len(data.Addresses) > 0 {
+		if encoded, err := json.Marshal(data.Addresses); err == nil {
+			params["addresses"] = string(encoded)
+		}
+	}
 	result, err := app.DB().Update(collectionName, params, dbx.HashExp{"id": systemId}).Execute()
 	rowsAffected, _ := result.RowsAffected()
 	if err != nil || rowsAffected == 0 {
