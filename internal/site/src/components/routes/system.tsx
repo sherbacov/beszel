@@ -4,6 +4,7 @@ import { compareSemVer, parseSemVer } from "@/lib/utils"
 import type { GPUData } from "@/types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import InfoBar from "./system/info-bar"
+import NetworkTable from "./system/network-table"
 import { useSystemData } from "./system/use-system-data"
 import { CpuChart, ContainerCpuChart } from "./system/charts/cpu-charts"
 import { MemoryChart, ContainerMemoryChart, SwapChart } from "./system/charts/memory-charts"
@@ -149,6 +150,8 @@ export default memo(function SystemDetail({ id }: { id: string }) {
 				{hasZfs && <LazyZfsTable systemId={system.id} />}
 
 				{maybeHasSmartData && <LazySmartTable systemId={system.id} />}
+
+				<NetworkTable system={system} details={details} />
 
 				{hasContainersTable && <LazyContainersTable systemId={system.id} />}
 
