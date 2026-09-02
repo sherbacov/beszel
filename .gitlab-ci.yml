@@ -1,0 +1,82 @@
+# Сборка форка Beszel: образ хаба и бинарь агента из одного коммита.
+#
+# Зачем свой конвейер, а не образы upstream: поддержка ZFS-пулов появилась в
+# main 01.09.2026 и ни в один релиз ещё не вошла, плюс сверху лежат наши
+# доработки — адреса по интерфейсам и состояние туннелей. Хаб понимает эти
+# поля только если собран из того же кода, что и агент, поэтому оба собираются
+# здесь вместе и помечаются одним тегом.
+
+stages:
+  - test
+  - build
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  # Версия Go берётся из go.mod; здесь та же, чтобы сборка не разъезжалась
+  # с тем, что проверяют тесты.
+  GO_IMAGE: golang:1.27-alpine
+  HUB_IMAGE: $CI_REGISTRY_IMAGE/hub
+
+test:go:
+  stage: test
+  image: $GO_IMAGE
+  script:
+    # Веб-интерфейс не собран, поэтому internal/site не компилируется —
+    # проверяем то, что от него не зависит.
+    - go test ./agent/... ./internal/entities/... ./internal/alerts/...
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+build:hub:
+  stage: build
+  # Версия прибита по образцу infra/crm-image и infra/mail-send: на плавающем
+  # docker:latest dind приносит фронтенд BuildKit, который падает на этом
+  # раннере.
+  image: docker:27.5.1
+  services:
+    - name: docker:27.5.1-dind
+      entrypoint: ["env", "-u", "DOCKER_HOST"]
+      command: ["dockerd-entrypoint.sh", "--registry-mirror=http://registry-mirror1.dgtlnet.com:6000"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375/
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    # Веб-интерфейс встраивается в бинарь через go:embed, поэтому его надо
+    # собрать до сборки образа — иначе internal/site/embed.go не найдёт dist.
+    - docker run --rm -v "$PWD:/src" -w /src/internal/site oven/bun:1.4.0-alpine sh -c "bun install --frozen-lockfile && bun run build"
+    - docker build -f internal/dockerfile_hub -t "$HUB_IMAGE:$CI_COMMIT_SHORT_SHA" .
+    - docker push "$HUB_IMAGE:$CI_COMMIT_SHORT_SHA"
+    # Подвижную метку двигаем только с основной ветки, чтобы кластер случайно
+    # не уехал на сборку из ветки разработки.
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        docker tag "$HUB_IMAGE:$CI_COMMIT_SHORT_SHA" "$HUB_IMAGE:latest"
+        docker push "$HUB_IMAGE:latest"
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+build:agent:
+  stage: build
+  image: $GO_IMAGE
+  script:
+    # Статически, без тега glibc: он нужен только ради NVML, а сборка с ним
+    # требует glibc 2.32 и не запускается на AlmaLinux 8 (2.28) — служба
+    # падает с 203/EXEC, что читается как «битый бинарь».
+    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s" -o beszel-agent_linux_amd64 ./internal/cmd/agent
+    - ./beszel-agent_linux_amd64 --version
+    - sha256sum beszel-agent_linux_amd64 | tee beszel-agent_linux_amd64.sha256
+  artifacts:
+    name: "beszel-agent-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - beszel-agent_linux_amd64
+      - beszel-agent_linux_amd64.sha256
+    expire_in: 90 days
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
