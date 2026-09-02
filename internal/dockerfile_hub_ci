@@ -1,0 +1,32 @@
+# Хаб целиком: веб-интерфейс и бинарь собираются здесь же.
+#
+# Штатный internal/dockerfile_hub ждёт, что internal/site/dist уже собран —
+# это удобно локально, но в CI приводит к сборке интерфейса отдельным шагом.
+# В dind такой шаг через `docker run -v $PWD:/src` монтирует путь, которого в
+# файловой системе демона нет, и получается пустой каталог. Поэтому обе стадии
+# держим внутри docker build: контекст передаётся демону целиком и правильно.
+
+FROM oven/bun:1.4.0-alpine AS web
+WORKDIR /site
+COPY internal/site/package.json internal/site/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY internal/site/ ./
+RUN bun run build
+
+FROM --platform=$BUILDPLATFORM golang:alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . ./
+# Готовый интерфейс кладём туда, где его ждёт go:embed в internal/site/embed.go
+COPY --from=web /site/dist ./internal/site/dist
+RUN apk add --no-cache ca-certificates && update-ca-certificates
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOGC=75 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags "-w -s" -o /beszel ./internal/cmd/hub
+
+FROM scratch
+COPY --from=builder /beszel /
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+EXPOSE 8090
+ENTRYPOINT ["/beszel"]
+CMD ["serve", "--http=0.0.0.0:8090"]

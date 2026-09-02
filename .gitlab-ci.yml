@@ -45,10 +45,11 @@ build:hub:
   before_script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
-    # Веб-интерфейс встраивается в бинарь через go:embed, поэтому его надо
-    # собрать до сборки образа — иначе internal/site/embed.go не найдёт dist.
-    - docker run --rm -v "$PWD:/src" -w /src/internal/site oven/bun:1.4.0-alpine sh -c "bun install --frozen-lockfile && bun run build"
-    - docker build -f internal/dockerfile_hub -t "$HUB_IMAGE:$CI_COMMIT_SHORT_SHA" .
+    # Свой Dockerfile: интерфейс собирается отдельной стадией внутри него.
+    # Отдельным шагом через `docker run -v $PWD:/src` не выйдет — в dind демон
+    # живёт в другом контейнере и такого пути у себя не видит, монтируется
+    # пустой каталог, а сборка молча виснет.
+    - docker build -f internal/dockerfile_hub_ci -t "$HUB_IMAGE:$CI_COMMIT_SHORT_SHA" .
     - docker push "$HUB_IMAGE:$CI_COMMIT_SHORT_SHA"
     # Подвижную метку двигаем только с основной ветки, чтобы кластер случайно
     # не уехал на сборку из ветки разработки.
