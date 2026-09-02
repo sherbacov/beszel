@@ -195,6 +195,16 @@ type Details struct {
 	MemoryTotal   uint64        `cbor:"9,keyasint"`
 	SmartInterval time.Duration `cbor:"10,keyasint,omitempty"`
 	ZfsInterval   time.Duration `cbor:"11,keyasint,omitempty"` // interval for ZFS detail refresh
+	// Addresses lists the host's global IP addresses per interface. Loopback and
+	// link-local are filtered out: on a hypervisor with dozens of bridges and
+	// tunnels they bury the addresses the machine is actually reachable on.
+	Addresses []InterfaceAddresses `cbor:"12,keyasint,omitempty"`
+}
+
+// InterfaceAddresses holds the global IP addresses of a single network interface.
+type InterfaceAddresses struct {
+	Name      string   `json:"n" cbor:"0,keyasint"`
+	Addresses []string `json:"a" cbor:"1,keyasint"`
 }
 
 // Final data structure to return to the hub

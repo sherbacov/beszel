@@ -110,6 +110,9 @@ func (a *Agent) refreshSystemDetails() {
 		}
 	}
 
+	// global IP addresses per interface
+	a.systemDetails.Addresses = getInterfaceAddresses()
+
 	// zfs
 	if _, err := zfs.ARCSize(); err != nil {
 		slog.Debug("Not monitoring ZFS ARC", "err", err)
